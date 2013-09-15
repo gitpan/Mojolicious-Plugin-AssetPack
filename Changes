@@ -1,0 +1,8 @@
+Revision history for Mojolicious-Plugin-AssetPack
+
+0.01     Sun Sep 15 14:20:22 2013
+       * Add "asset" helper
+       * Add support for chained preprocessors
+       * Add default preprocessors for js, css, scss and less
+       * Can expand from moniker to multiple script/link tags
+       * Can compress multiple files to one moniker asset

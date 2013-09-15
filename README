@@ -1,0 +1,121 @@
+NAME
+    Mojolicious::Plugin::AssetPack - Compress and convert css, less, sass
+    and javascript files
+
+VERSION
+    0.01
+
+SYNOPSIS
+    In your application:
+
+      use Mojolicious::Lite;
+
+      plugin AssetPack => { rebuild => 1 };
+
+      # add a preprocessor
+      app->asset->preprocessors->add(js => sub {
+        my($assetpack, $text, $file) = @_;
+        $$text = "// yikes!\n" if 5 < rand 10;
+      });
+
+      # define assets: $moniker => @real_assets
+      app->asset('app.js' => '/js/foo.js', '/js/bar.js');
+      app->asset('app.css' => '/css/foo.less', '/css/bar.scss', '/css/main.css');
+
+      app->start;
+
+    In your template:
+
+      %= asset 'app.js'
+      %= asset 'app.css'
+
+    See also "register".
+
+DESCRIPTION
+  Production mode
+    This plugin will compress scss, less, css and javascript with the help
+    of external applications on startup. The result will be one file with
+    all the sources combined. This file is stored in "Packed directory".
+
+    This is done using "process".
+
+    The actual file requested will also contain the timestamp when this
+    server was started. This is to help refreshing cache on change. Example:
+
+      <script src="/packed/app.1379243728.js">
+
+  Development mode
+    This plugin will expand the input files to multiple script or link tags
+    which makes debugging and development easier.
+
+    This is done using "expand".
+
+    TIP! Make morbo watch your less/sass files as well:
+
+      $ morbo -w lib -w templates -w public/sass
+
+  Packed directory
+    The output directory where all the compressed files are stored will be
+    "public/packed", relative to the application home:
+
+      $app->home->rel_dir('public/packed');
+
+  Preprocessors
+    This library tries to find default preprocessors for less, scss, js and
+    css.
+
+    NOTE! The preprocessors require optional dependencies to function
+    properly. Check out "detect" in
+    Mojolicious::Plugin::AssetPack::Preprocessors for more details.
+
+ATTRIBUTES
+  minify
+    This is set to true if the assets should be minified.
+
+  preprocessors
+    Holds a Mojolicious::Plugin::AssetPack::Preprocessors object.
+
+METHODS
+  add
+      $self->add($moniker => @rel_files);
+
+    Used to define new assets aliases. This method is called when the
+    "asset()" helper is called on the app.
+
+  expand
+      $bytestream = $self->expand($c, $moniker);
+
+    This method will return one tag for each asset defined by the
+    "$moniker".
+
+    Will also run "less" or "sass" on the files to convert them to css,
+    which the browser understand.
+
+    The returning bytestream will contain style or script tags.
+
+  process
+      $self->process($moniker);
+
+    This method use "process" in
+    Mojolicious::Plugin::AssetPack::Preprocessors to convert and/or minify
+    the sources pointed at by $moniker.
+
+    The result file will be stored in "Packed directory".
+
+  register
+      plugin 'AssetPack', {
+        minify => $bool, # compress assets
+        no_autodetect => $bool, # disable preprocessor autodetection
+        rebuild => $bool, # overwrite if assets exists
+      };
+
+    Will register the "compress" helper. All arguments are optional.
+
+    "minify" will default to true if "mode" in Mojolicious is "production".
+
+    "rebuild" can be set to true to always rebuild the compressed files when
+    the application is started. The default is to use the cached files.
+
+AUTHOR
+    Jan Henning Thorsen - "jhthorsen@cpan.org"
+

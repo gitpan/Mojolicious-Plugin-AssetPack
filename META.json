@@ -4,7 +4,7 @@
       "Jan Henning Thorsen <jhthorsen@cpan.org>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.131560",
+   "generated_by" : "ExtUtils::MakeMaker version 6.8, CPAN::Meta::Converter version 2.120351",
    "license" : [
       "perl_5"
    ],
@@ -51,5 +51,5 @@
          "url" : "https://github.com/jhthorsen/mojolicious-plugin-assetpack"
       }
    },
-   "version" : "0.0201"
+   "version" : "0.03"
 }

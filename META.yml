@@ -7,7 +7,7 @@ build_requires:
 configure_requires:
   ExtUtils::MakeMaker: 0
 dynamic_config: 1
-generated_by: 'ExtUtils::MakeMaker version 6.8, CPAN::Meta::Converter version 2.120351'
+generated_by: 'ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.120921'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -26,4 +26,4 @@ resources:
   homepage: https://metacpan.org/release/Mojolicious-Plugin-AssetPack
   license: http://dev.perl.org/licenses/
   repository: https://github.com/jhthorsen/mojolicious-plugin-assetpack
-version: 0.0401
+version: 0.0402

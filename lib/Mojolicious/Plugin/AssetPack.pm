@@ -6,7 +6,7 @@ Mojolicious::Plugin::AssetPack - Compress and convert css, less, sass and javasc
 
 =head1 VERSION
 
-0.0601
+0.07
 
 =head1 SYNOPSIS
 
@@ -16,15 +16,17 @@ In your application:
 
   plugin 'AssetPack';
 
-  # add a preprocessor
-  app->asset->preprocessors->add(js => sub {
-    my($assetpack, $text, $file) = @_;
-    $$text = "// yikes!\n" if 5 < rand 10;
-  });
-
   # define assets: $moniker => @real_assets
   app->asset('app.js' => '/js/foo.js', '/js/bar.js');
   app->asset('app.css' => '/css/foo.less', '/css/bar.scss', '/css/main.css');
+
+  # you can combine with assets from web
+  app->asset('bundle.js' => (
+    'http://cdnjs.cloudflare.com/ajax/libs/es5-shim/2.3.0/es5-shim.js',
+    'http://cdnjs.cloudflare.com/ajax/libs/es5-shim/2.3.0/es5-sham.js',
+    'http://code.jquery.com/jquery-1.11.0.js',
+    '/js/myapp.js',
+  ));
 
   app->start;
 
@@ -68,13 +70,6 @@ TIP! Make morbo watch your less/sass files as well:
 
   $ morbo -w lib -w templates -w public/sass
 
-=head2 Packed directory
-
-The output directory where all the compressed files are stored will be
-"public/packed", relative to the application home:
-
-  $app->home->rel_dir('public/packed');
-
 =head2 Preprocessors
 
 This library tries to find default preprocessors for less, scss, js and css.
@@ -82,6 +77,13 @@ This library tries to find default preprocessors for less, scss, js and css.
 NOTE! The preprocessors require optional dependencies to function properly.
 Check out L<Mojolicious::Plugin::AssetPack::Preprocessors/detect> for more
 details.
+
+You can also define your own preprocessors:
+
+  app->asset->preprocessors->add(js => sub {
+    my($assetpack, $text, $file) = @_;
+    $$text = "// yikes!\n" if 5 < rand 10;
+  });
 
 =cut
 
@@ -92,7 +94,7 @@ use Mojolicious::Plugin::AssetPack::Preprocessors;
 use File::Basename qw( basename );
 use File::Spec::Functions qw( catfile );
 
-our $VERSION = '0.0601';
+our $VERSION = '0.07';
 our %MISSING_ERROR = (
   default => '%s has no preprocessor. https://metacpan.org/pod/Mojolicious::Plugin::AssetPack::Preprocessors#detect',
   less => '%s require "less". http://lesscss.org/#usage',
@@ -106,17 +108,21 @@ our %MISSING_ERROR = (
 
 Set this to true if the assets should be minified.
 
-=cut
-
-has minify => 0;
-
 =head2 preprocessors
 
 Holds a L<Mojolicious::Plugin::AssetPack::Preprocessors> object.
 
+=head2 out_dir
+
+Holds the path to the firectory where packed files can be written. It
+defaults to "mojo-assetpack" directory in L<temp|File::Spec::Functions/tmpdir>
+unless a L<static directory|Mojolicious::Static/paths> is writeable.
+
 =cut
 
+has minify => 0;
 has preprocessors => sub { Mojolicious::Plugin::AssetPack::Preprocessors->new };
+has out_dir => sub { File::Spec::Functions::catdir(File::Spec::Functions::tmpdir(), 'mojo-assetpack') };
 
 =head2 rebuild
 
@@ -127,6 +133,11 @@ Deprecated.
 sub rebuild {
   warn "rebuild() has no effect any more. Will soon be removed."
 }
+
+has _ua => sub {
+  require Mojo::UserAgent;
+  Mojo::UserAgent->new(max_redirects => 3);
+};
 
 =head1 METHODS
 
@@ -224,18 +235,12 @@ sub process {
   my $content = {};
 
   # @files will contain full path after this map {}
-  $md5_sum = Mojo::Util::md5_sum(
-              join '', map {
-                my $file = $self->{static}->file($_);
-                $_ = $file->path if $file;
-                $content->{$_} = Mojo::Util::slurp($_);
-              } @files
-             );
+  $md5_sum = Mojo::Util::md5_sum(join '', map { $content->{$_} = $self->_slurp } @files);
 
   $out_file = $moniker;
   $out_file =~ s/\.(\w{1,4})$/-$md5_sum.$1/;
 
-  if(-s catfile $self->{out_dir}, $out_file) {
+  if(-s catfile $self->out_dir, $out_file) {
     $self->{log}->debug("Using existing asset for $moniker");
     $self->{assets}{$moniker} = "/packed/$out_file";
     return $self;
@@ -262,7 +267,7 @@ sub process {
         $content->{$_};
       } @files
     ),
-    catfile($self->{out_dir}, $out_file)
+    catfile($self->out_dir, $out_file)
   );
 
   $self->{log}->debug("Built asset for $moniker ($out_file)");
@@ -298,10 +303,22 @@ sub register {
   $self->{assets} = {};
   $self->{cleanup} = $config->{cleanup} // 1;
   $self->{log} = $app->log;
-  $self->{out_dir} = $config->{out_dir} || $app->home->rel_dir('public/packed');
   $self->{static} = $app->static;
 
-  mkdir $self->{out_dir}; # TODO: Use mkpath instead?
+  if($config->{out_dir}) {
+    $self->out_dir($config->{out_dir});
+    push @{ $app->static->paths } , $config->{out_dir};
+  }
+  else {
+    for my $path (@{ $app->static->paths }) {
+      next unless -w $path;
+      $self->out_dir(File::Spec::Functions::catdir($path, 'packed'));
+    }
+  }
+
+  unless(-d $self->out_dir) {
+    mkdir $self->out_dir or die "Could not mkdir $self->{out_dir}: $!";
+  }
 
   $app->helper($helper => sub {
     return $self if @_ == 1;
@@ -327,12 +344,39 @@ sub _remove_processed {
   my($self, $moniker) = @_;
   my($name, $ext) = $moniker =~ m!^(.+)\.(\w+)$!;
 
-  opendir(my $DH, $self->{out_dir});
+  opendir(my $DH, $self->out_dir);
   for my $file (readdir $DH) {
     $file =~ m!^$name-\w{32}\.$ext! or next;
     $self->{log}->debug("Removing $self->{out_dir}/$file");
-    unlink catfile($self->{out_dir}, $file) or die "Could not unlink $self->{out_dir}/$file: $!";
+    unlink catfile($self->out_dir, $file) or die "Could not unlink $self->{out_dir}/$file: $!";
   }
+}
+
+# NOTE This method is kind of evil, since it use $_
+sub _slurp {
+  my $self = shift;
+  my $file = $_;
+  my $asset;
+
+  if(/^https?:/) {
+    $asset = $file;
+    $asset =~ s![^\w\.\-]!_!g;
+    $asset = catfile($self->out_dir, $asset);
+    $_ = $asset;
+
+    return Mojo::Util::slurp($asset) if -s $asset;
+
+    my $data = $self->_ua->get($file)->res->body;
+    Mojo::Util::spurt($data, $asset);
+    $self->{log}->info("Downloaded asset $file to $asset");
+    return $data;
+  }
+  elsif($asset = $self->{static}->file($file)) {
+    $_ = $asset->path;
+    return Mojo::Util::slurp($asset->path);
+  }
+
+  die "Could not find asset for ($file)";
 }
 
 =head1 AUTHOR

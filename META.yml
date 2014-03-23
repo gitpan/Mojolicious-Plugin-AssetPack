@@ -28,4 +28,4 @@ resources:
   homepage: https://metacpan.org/release/Mojolicious-Plugin-AssetPack
   license: http://dev.perl.org/licenses/
   repository: https://github.com/jhthorsen/mojolicious-plugin-assetpack
-version: 0.08
+version: 0.09

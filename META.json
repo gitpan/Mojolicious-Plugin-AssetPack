@@ -1,5 +1,5 @@
 {
-   "abstract" : "Compress and convert css, less, sass and javascript files",
+   "abstract" : "Compress and convert css, less, sass, javascript and coffeescript files",
    "author" : [
       "Jan Henning Thorsen <jhthorsen@cpan.org>"
    ],
@@ -53,5 +53,5 @@
          "url" : "https://github.com/jhthorsen/mojolicious-plugin-assetpack"
       }
    },
-   "version" : "0.10"
+   "version" : "0.11"
 }

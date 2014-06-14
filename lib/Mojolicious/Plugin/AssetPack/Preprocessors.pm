@@ -46,16 +46,36 @@ Installation on Ubuntu and Debian:
   $ sudo apt-get install npm
   $ sudo npm install -g less
 
-=item * scss
+=item * sass
 
 Sass makes CSS fun again. Sass is an extension of CSS3, adding nested rules,
 variables, mixins, selector inheritance, and more. See L<http://sass-lang.com>
-for more information.
+for more information. Supports both F<*.scss> and F<*.sass> syntax variants.
 
 Installation on Ubuntu and Debian:
 
   $ sudo apt-get install rubygems
   $ sudo gem install sass
+
+=item * compass
+
+Compass is an open-source CSS Authoring Framework built on top of L</sass>.
+See L<http://compass-style.org/> for more information.
+
+Installation on Ubuntu and Debian:
+
+  $ sudo apt-get install rubygems
+  $ sudo gem install compass
+
+This module will try figure out if "compass" is required to process your
+C<*.scss> files. This is done with this regexp on the top level sass file:
+
+  m!\@import\W+compass\/!;
+
+NOTE! Compass support is experimental.
+
+You can disable compass detection by setting the environment variable
+C<MOJO_ASSETPACK_NO_COMPASS> to a true value.
 
 =item * js
 
@@ -88,19 +108,33 @@ sub detect {
   my $self = shift;
 
   if(my $app = which('lessc')) {
+    $self->map_type(less => 'css');
     $self->add(less => sub {
       my($assetpack, $text, $file) = @_;
       run3([$app, '-', $assetpack->minify ? ('-x') : ()], $text, $text);
     });
   }
   if(my $app = which('sass')) {
+    $self->map_type(scss => 'css');
     $self->add(scss => sub {
       my($assetpack, $text, $file) = @_;
+      my @cmd = ( $app, '-I' => dirname $file );
+
+      push @cmd, qw( --stdin --scss );
+      push @cmd, qw( -t compressed) if $assetpack->minify;
+      push @cmd, qw( --compass ) if !$ENV{MOJO_ASSETPACK_NO_COMPASS} and $$text =~ m!\@import\W+compass\/!;
+
+      run3(\@cmd, $text, $text);
+    });
+    $self->map_type(sass => 'css');
+    $self->add(sass => sub {
+      my($assetpack, $text, $file) = @_;
       my $include_dir = dirname $file;
-      run3([$app, '-I', $include_dir, '--stdin', '--scss', $assetpack->minify ? ('-t', 'compressed') : ()], $text, $text);
+      run3([$app, '-I', $include_dir, '--stdin', $assetpack->minify ? ('-t', 'compressed') : ()], $text, $text);
     });
   }
   if(my $app = which('coffee')) {
+    $self->map_type(coffee => 'js');
     $self->add(coffee => sub {
       my($assetpack, $text, $file) = @_;
       my $err;
@@ -152,6 +186,24 @@ sub process {
   chdir $old_dir;
 
   $self;
+}
+
+=head2 map_type
+
+  $self = $self->map_type($from => $to);
+  $to = $self->map_type($from);
+
+Method used to map one file type that should be transformed to another file
+type. Example:
+
+  $self->map_type(coffee => "js");
+
+=cut
+
+sub map_type {
+  return $_[0]->{extensions}{$_[1]} || '' if @_ == 2;
+  $_[0]->{extensions}{$_[1]} = $_[2];
+  return $_[0];
 }
 
 =head2 remove

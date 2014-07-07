@@ -6,7 +6,7 @@
    "dynamic_config" : 1,
    "generated_by" : "ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.120921",
    "license" : [
-      "perl_5"
+      "artistic_2"
    ],
    "meta-spec" : {
       "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
@@ -22,7 +22,7 @@
    "prereqs" : {
       "build" : {
          "requires" : {
-            "Test::More" : "0.90"
+            "Test::More" : "0.88"
          }
       },
       "configure" : {
@@ -43,15 +43,12 @@
    "release_status" : "stable",
    "resources" : {
       "bugtracker" : {
-         "web" : "http://rt.cpan.org/NoAuth/Bugs.html?Dist=Mojolicious-Plugin-AssetPack"
+         "web" : "https://github.com/jhthorsen/mojolicious-plugin-assetpack/issues"
       },
-      "homepage" : "https://metacpan.org/release/Mojolicious-Plugin-AssetPack",
-      "license" : [
-         "http://dev.perl.org/licenses/"
-      ],
+      "homepage" : "https://github.com/jhthorsen/mojolicious-plugin-assetpack",
       "repository" : {
-         "url" : "https://github.com/jhthorsen/mojolicious-plugin-assetpack"
+         "url" : "https://github.com/jhthorsen/mojolicious-plugin-assetpack.git"
       }
    },
-   "version" : "0.15"
+   "version" : "0.16"
 }

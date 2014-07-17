@@ -6,7 +6,7 @@ Mojolicious::Plugin::AssetPack - Compress and convert css, less, sass, javascrip
 
 =head1 VERSION
 
-0.17
+0.18
 
 =head1 SYNOPSIS
 
@@ -136,7 +136,7 @@ use Mojolicious::Plugin::AssetPack::Preprocessors;
 use File::Basename qw( basename );
 use File::Spec::Functions qw( catfile );
 
-our $VERSION = '0.17';
+our $VERSION = '0.18';
 our %MISSING_ERROR = (
   default => '%s has no preprocessor. https://metacpan.org/pod/Mojolicious::Plugin::AssetPack::Preprocessors#detect',
   less => '%s require "less". http://lesscss.org/#usage',
@@ -153,7 +153,7 @@ our %MISSING_ERROR = (
   $str = $self->base_url;
 
 This attribute can be used to control where to serve static assets from.
-it defaults to "/packed". See als L</Custom domain>.
+it defaults to "/packed". See also L</Custom domain>.
 
 NOTE! You need to have a trailing "/" at the end of the string.
 
@@ -167,7 +167,7 @@ Holds a L<Mojolicious::Plugin::AssetPack::Preprocessors> object.
 
 =head2 out_dir
 
-Holds the path to the firectory where packed files can be written. It
+Holds the path to the directory where packed files can be written. It
 defaults to "mojo-assetpack" directory in L<temp|File::Spec::Functions/tmpdir>
 unless a L<static directory|Mojolicious::Static/paths> is writeable.
 
@@ -426,6 +426,7 @@ sub _read_files {
       my $res = $self->_ua->get($url)->res;
       my $ct = $res->headers->content_type;
       my $type = $ct =~ m!javascript! ? 'js' : $ct =~ m!css! ? 'css' : $file =~ m!\.(\w+)$! ? $1 : 'unknown';
+      die "Could not download asset from $url: @{[$res->error->{message}]}" if $res->error;
       $file = catfile($self->out_dir, "$file.$type");
       $content{$file} = $res->body;
       Mojo::Util::spurt($res->body, $file);
@@ -436,7 +437,7 @@ sub _read_files {
       $content{$file} = Mojo::Util::slurp($asset->path);
     }
     else {
-      die "Cannot find input file $file";
+      die "Cannot find asset input file $file";
     }
   }
 

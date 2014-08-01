@@ -22,9 +22,9 @@ requires:
   File::Which: 1.00
   IPC::Run3: 0.04
   JavaScript::Minifier::XS: 0.01
-  Mojolicious: 4.30
+  Mojolicious: 5.00
 resources:
   bugtracker: https://github.com/jhthorsen/mojolicious-plugin-assetpack/issues
   homepage: https://github.com/jhthorsen/mojolicious-plugin-assetpack
   repository: https://github.com/jhthorsen/mojolicious-plugin-assetpack.git
-version: 0.19
+version: 0.20

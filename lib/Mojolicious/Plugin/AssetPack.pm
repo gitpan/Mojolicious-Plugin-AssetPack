@@ -6,7 +6,7 @@ Mojolicious::Plugin::AssetPack - Compress and convert css, less, sass, javascrip
 
 =head1 VERSION
 
-0.19
+0.20
 
 =head1 SYNOPSIS
 
@@ -136,7 +136,7 @@ use Mojolicious::Plugin::AssetPack::Preprocessors;
 use File::Basename qw( basename );
 use File::Spec::Functions qw( catfile );
 
-our $VERSION = '0.19';
+our $VERSION = '0.20';
 our %MISSING_ERROR = (
   default => '%s has no preprocessor. https://metacpan.org/pod/Mojolicious::Plugin::AssetPack::Preprocessors#detect',
   less => '%s require "less". http://lesscss.org/#usage',
@@ -366,7 +366,7 @@ sub register {
   }
 
   unless(-d $self->out_dir) {
-    mkdir $self->out_dir or die "Could not mkdir $self->{out_dir}: $!";
+    mkdir $self->out_dir or die "AssetPack could not create out_dir '$self->{out_dir}': $!";
   }
 
   $app->helper($helper => sub {
@@ -424,9 +424,9 @@ sub _read_files {
       }
 
       my $res = $self->_ua->get($url)->res;
-      my $ct = $res->headers->content_type;
+      my $ct = $res->headers->content_type // 'unknown';
       my $type = $ct =~ m!javascript! ? 'js' : $ct =~ m!css! ? 'css' : $file =~ m!\.(\w+)$! ? $1 : 'unknown';
-      die "Could not download asset from $url: @{[$res->error->{message}]}" if $res->error;
+      die "AssetPack could not download asset from '$url': @{[$res->error->{message}]}\n" if $res->error;
       $file = catfile($self->out_dir, "$file.$type");
       $content{$file} = $res->body;
       Mojo::Util::spurt($res->body, $file);
@@ -437,7 +437,7 @@ sub _read_files {
       $content{$file} = Mojo::Util::slurp($asset->path);
     }
     else {
-      die "Cannot find asset input file $file";
+      die "AssetPack cannot find input file '$file'\n";
     }
   }
 

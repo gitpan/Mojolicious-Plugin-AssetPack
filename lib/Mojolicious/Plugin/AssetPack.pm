@@ -6,7 +6,7 @@ Mojolicious::Plugin::AssetPack - Compress and convert css, less, sass, javascrip
 
 =head1 VERSION
 
-0.22
+0.23
 
 =head1 SYNOPSIS
 
@@ -21,7 +21,7 @@ In your application:
   app->asset('app.css' => '/css/foo.less', '/css/bar.scss', '/css/main.css');
 
   # you can combine with assets from web
-  app->asset('bundle.js' => (
+  app->asset('ie8.js' => (
     'http://cdnjs.cloudflare.com/ajax/libs/es5-shim/2.3.0/es5-shim.js',
     'http://cdnjs.cloudflare.com/ajax/libs/es5-shim/2.3.0/es5-sham.js',
     'http://code.jquery.com/jquery-1.11.0.js',
@@ -131,13 +131,13 @@ See also L<https://developers.google.com/speed/docs/best-practices/request#Serve
 
 use Mojo::Base 'Mojolicious::Plugin';
 use Mojo::ByteStream 'b';
-use Mojo::Util 'md5_sum';
+use Mojo::Util qw( md5_sum slurp spurt );
 use Mojolicious::Plugin::AssetPack::Preprocessors;
 use File::Basename qw( basename );
-use File::Spec::Functions qw( catfile );
+use File::Spec::Functions qw( catdir catfile );
 use constant DEBUG => $ENV{MOJO_ASSETPACK_DEBUG} || 0;
 
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 our %MISSING_ERROR = (
   default => '%s has no preprocessor. https://metacpan.org/pod/Mojolicious::Plugin::AssetPack::Preprocessors#detect',
   coffee => '%s require "coffee". http://coffeescript.org/#installation',
@@ -178,7 +178,7 @@ unless a L<static directory|Mojolicious::Static/paths> is writeable.
 has base_url => '/packed/';
 has minify => 0;
 has preprocessors => sub { Mojolicious::Plugin::AssetPack::Preprocessors->new };
-has out_dir => sub { File::Spec::Functions::catdir(File::Spec::Functions::tmpdir(), 'mojo-assetpack') };
+has out_dir => sub { catdir File::Spec::Functions::tmpdir(), 'mojo-assetpack' };
 
 =head2 rebuild
 
@@ -217,8 +217,7 @@ sub add {
     $self->process($moniker => @files);
   }
   elsif(!$ENV{MOJO_ASSETPACK_NO_CACHE}) {
-    my @processed_files = $self->_process_many($moniker, @files);
-    $self->{processed}{$moniker} = \@processed_files;
+    $self->{processed}{$moniker} = [$self->_process_many($moniker, @files)];
   }
 
   $self;
@@ -264,6 +263,44 @@ sub expand {
   }
 }
 
+=head2 fetch
+
+  $path = $self->fetch($url);
+
+This method can be used to fetch an asset and store the content to a local
+file. The download will be skipped if the file already exists. The return
+value is the absolute path to the downloaded file.
+
+=cut
+
+sub fetch {
+  my ($self, $url, $destination) = @_;
+  my $lookup = $url;
+
+  $lookup =~ s![^\w-]!_!g;
+
+  if (my $name = $self->_fluffy_find(qr{^$lookup\.\w+$})) {
+    return catfile $self->out_dir, $name;
+  }
+
+  my $res = $self->_ua->get($url)->res;
+  my $ct = $res->headers->content_type // 'text/plain';
+  my $ext = Mojolicious::Types->new->detect($ct) || 'txt';
+  my $path;
+
+  $ext = $ext->[0] if ref $ext;
+  $ext = Mojo::URL->new($url)->path =~ m!\.(\w+)$! ? $1 : 'txt' if !$ext or $ext eq 'bin';
+
+  if (my $e = $res->error) {
+    die "AssetPack could not download asset from '$url': $e->{message}\n";
+  }
+
+  $path = catfile $self->out_dir, "$lookup.$ext";
+  spurt $res->body, $path;
+  $self->{log}->info("Downloaded asset $url to $path");
+  return $path;
+}
+
 =head2 get
 
   @files = $self->get($moniker);
@@ -298,15 +335,17 @@ sub process {
   my ($md5_sum, $files) = $self->_read_files(@files);
   my $out_file = $moniker;
   my $processed = '';
-  my @missing;
+  my (@missing, $name);
 
-  $out_file =~ s/\.(\w+)$/-$md5_sum.$1/;
+  $out_file =~ s/\.(\w+)$// or die "Moniker ($moniker) need to have an extension, like .css, .js, ...";
 
-  if (!$ENV{MOJO_ASSETPACK_NO_CACHE} and $self->{static}->file(catfile 'packed', $out_file)) {
+  if (!$ENV{MOJO_ASSETPACK_NO_CACHE} and $name = $self->_fluffy_find(qr{^$out_file(-$md5_sum)?\.\w+$})) {
     $self->{log}->debug("Using existing asset for $moniker");
-    $self->{processed}{$moniker} = $self->base_url .$out_file;
+    $self->{processed}{$moniker} = $self->base_url .$name;
     return $self;
   }
+
+  $out_file .= "-$md5_sum" .($moniker =~ m!(\.\w+)$!)[0];
 
   for my $file (@files) {
     my $data = $files->{$file};
@@ -325,12 +364,12 @@ sub process {
   if (@missing) {
     $self->{processed}{$moniker} = "/Mojolicious/Plugin/AssetPack/could/not/compile/$moniker";
   }
-  elsif ($md5_sum eq md5_sum $processed and $files[0] !~ /^http\s?:/) {
+  elsif ($md5_sum eq md5_sum($processed) and $files[0] !~ /^http\s?:/) {
     warn "[ASSETPACK] Same input as output for $files[0]\n" if DEBUG;
     $self->{processed}{$moniker} = $files[0];
   }
   else {
-    Mojo::Util::spurt($processed, catfile $self->out_dir, $out_file);
+    spurt $processed, catfile $self->out_dir, $out_file;
     $self->{log}->debug("Built asset for $moniker ($out_file)");
     $self->{processed}{$moniker} = $self->base_url .$out_file;
   }
@@ -375,7 +414,7 @@ sub register {
   else {
     for my $path (@{ $app->static->paths }) {
       next unless -w $path;
-      $self->out_dir(File::Spec::Functions::catdir($path, 'packed'));
+      $self->out_dir(catdir $path, 'packed');
     }
   }
 
@@ -392,13 +431,31 @@ sub register {
   });
 }
 
+sub _fluffy_find {
+  my ($self, $re) = @_;
+
+  opendir (my $DH, $self->out_dir) or die "opendir @{[$self->out_dir]}: $!";
+  for my $f (readdir $DH) {
+    next unless $f =~ $re;
+    return $f;
+  }
+
+  return;
+}
+
 sub _process_many {
   my($self, $moniker, @files) = @_;
   my $ext = $moniker =~ /\.(\w+)$/ ? $1 : 'unknown_extension';
 
   for my $file (@files) {
     my $moniker = basename $file;
-    $moniker =~ s!\.(\w+)$!.$ext!;
+
+    unless ($moniker =~ s!\.(\w+)$!.$ext!) {
+      $moniker = $file;
+      $moniker =~ s![^\w-]!_!g;
+      $moniker .= ".$ext";
+    }
+
     $self->process($moniker => $file);
     $file = $self->{processed}{$moniker};
   }
@@ -408,43 +465,31 @@ sub _process_many {
 
 sub _read_files {
   my ($self, @files) = @_;
-  my ($md5_sum, %files);
+  my (@checksum, %files);
 
   FILE:
   for my $file (@files) {
     my $data = $files{$file} = { ext => $file =~ /\.(\w+)$/ ? $1 : 'default' };
 
     if ($file =~ /^https?:/) {
-      my $lookup = $file;
-      $lookup =~ s!\W!_!g;
-
-      opendir(my $DH, $self->out_dir);
-      for my $f (readdir $DH) {
-        $f =~ m!^$lookup\.! or next;
-        $data->{path} = catfile($self->out_dir, $f);
-        $data->{body} = Mojo::Util::slurp($data->{path});
-        next FILE;
-      }
-
-      my $res = $self->_ua->get($file)->res;
-      my $ct = $res->headers->content_type // 'unknown';
-      my $type = $ct =~ m!javascript! ? 'js' : $ct =~ m!css! ? 'css' : $file =~ m!\.(\w+)$! ? $1 : 'unknown';
-      die "AssetPack could not download asset from '$file': @{[$res->error->{message}]}\n" if $res->error;
-      $data->{path} = catfile($self->out_dir, "$lookup.$type");
-      $data->{body} = $res->body;
-      Mojo::Util::spurt($res->body, $data->{path});
-      $self->{log}->info("Downloaded asset $file to $data->{path}");
+      $data->{path} = $self->fetch($file);
+      $data->{body} = slurp $data->{path};
     }
     elsif (my $asset = $self->{static}->file($file)) {
       $data->{path} = $asset->path if $self->preprocessors->has_subscribers($data->{ext});
-      $data->{body} = Mojo::Util::slurp($asset->path);
+      $data->{body} = slurp $asset->path;
     }
     else {
       die "AssetPack cannot find input file '$file'\n";
     }
+
+    push @checksum, $self->preprocessors->checksum($data->{ext}, \$data->{body}, $data->{path});
   }
 
-  md5_sum(join '', map { $files{$_}{body} } @files), \%files;
+  return(
+    @checksum == 1 ? $checksum[0] : md5_sum(join '', @checksum),
+    \%files,
+  );
 }
 
 =head1 COPYRIGHT AND LICENSE

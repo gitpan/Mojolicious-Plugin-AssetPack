@@ -3,6 +3,9 @@
 Changes
 cpanfile
 lib/Mojolicious/Plugin/AssetPack.pm
+lib/Mojolicious/Plugin/AssetPack/Preprocessor.pm
+lib/Mojolicious/Plugin/AssetPack/Preprocessor/Sass.pm
+lib/Mojolicious/Plugin/AssetPack/Preprocessor/Scss.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessors.pm
 Makefile.PL
 MANIFEST			This list of files
@@ -17,6 +20,8 @@ t/css.t
 t/custom-domain.t
 t/custom-preprocessor.t
 t/embedded-app.t
+t/example-expand-src-url.t
+t/fetch.t
 t/google-font.t
 t/Helper.pm
 t/jquery.t

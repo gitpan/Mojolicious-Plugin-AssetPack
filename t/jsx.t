@@ -4,7 +4,7 @@ use t::Helper;
   diag "minify=0";
   my $t = t::Helper->t({ minify => 0 });
 
-  plan skip_all => 'Could not find preprocessors for jsx', 6 unless $t->app->asset->preprocessors->has_subscribers('jsx');
+  plan skip_all => 'Could not find preprocessors for jsx', 6 unless $t->app->asset->preprocessors->can_process('jsx');
 
   $t->app->asset('jsx.js' => '/js/c.jsx');
 
@@ -15,7 +15,7 @@ use t::Helper;
   $t->get_ok($t->tx->res->dom->at('script')->{src})
     ->status_is(200)
     ->content_like(qr{;[\n\s]+React})
-    ->content_like(qr{var app\s*=\s*React\.DOM\.div\(\s*{className:"appClass"},\s*"Hello, React!"\)});
+    ->content_like(qr{var app\s*=\s*React\.DOM\.div\(\s*{.*"appClass"},\s*"Hello, React!"\)});
 }
 
 {

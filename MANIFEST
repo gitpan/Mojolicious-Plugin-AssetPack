@@ -4,6 +4,11 @@ Changes
 cpanfile
 lib/Mojolicious/Plugin/AssetPack.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessor.pm
+lib/Mojolicious/Plugin/AssetPack/Preprocessor/CoffeeScript.pm
+lib/Mojolicious/Plugin/AssetPack/Preprocessor/Css.pm
+lib/Mojolicious/Plugin/AssetPack/Preprocessor/JavaScript.pm
+lib/Mojolicious/Plugin/AssetPack/Preprocessor/Jsx.pm
+lib/Mojolicious/Plugin/AssetPack/Preprocessor/Less.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessor/Sass.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessor/Scss.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessors.pm

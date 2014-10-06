@@ -1,1 +1,0 @@
-html:before{background:#f00;color:#fff;font-size:14pt;position:absolute;padding:20px;z-index:9999;content:"AssetPack failed to run 'sass --stdin --scss -I /home/jhthorsen/git/mojolicious-plugin-assetpack/t/public/sass'. exit_code=-1 No such file or directory";}

@@ -1,1 +1,0 @@
-alert('AssetPack failed to run "/home/jhthorsen/git/mojolicious-plugin-assetpack/t/bin/coffee --compile --stdio". exit_code=31 Inappropriate ioctl for device');

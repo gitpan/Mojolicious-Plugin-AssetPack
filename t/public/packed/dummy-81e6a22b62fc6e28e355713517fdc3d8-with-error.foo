@@ -1,1 +1,0 @@
-html:before{background:#f00;color:#fff;font-size:14pt;position:absolute;padding:20px;z-index:9999;content:"No preprocessor defined for /home/jhthorsen/git/mojolicious-plugin-assetpack/t/public/dummy.foo";}

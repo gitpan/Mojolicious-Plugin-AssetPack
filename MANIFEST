@@ -1,3 +1,4 @@
+.perltidyrc
 .ship.conf
 .travis.yml
 Changes
@@ -6,6 +7,7 @@ lib/Mojolicious/Plugin/AssetPack.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessor.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessor/CoffeeScript.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessor/Css.pm
+lib/Mojolicious/Plugin/AssetPack/Preprocessor/Fallback.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessor/JavaScript.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessor/Jsx.pm
 lib/Mojolicious/Plugin/AssetPack/Preprocessor/Less.pm
@@ -51,12 +53,17 @@ t/public/js/c.coffee
 t/public/js/c.jsx
 t/public/js/d.coffee
 t/public/js/empty.js
+t/public/packed/c-accff0dbd3d143a751e4d54eea182cfa-with-error.js
+t/public/packed/coffee-accff0dbd3d143a751e4d54eea182cfa-with-error.js
+t/public/packed/dummy-81e6a22b62fc6e28e355713517fdc3d8-with-error.foo
+t/public/packed/invalid-81e6a22b62fc6e28e355713517fdc3d8-with-error.foo
+t/public/packed/style-19455f135dea3f162e486f8a734f0069-with-error.css
+t/public/packed/x-19455f135dea3f162e486f8a734f0069-with-error.css
 t/public/sass/_included.scss
 t/public/sass/a.sass
 t/public/sass/compass.scss
 t/public/sass/x.scss
 t/public/sass/y.scss
-t/run.t
 t/sass.t
 t/scss.t
 t/skip-minified.t

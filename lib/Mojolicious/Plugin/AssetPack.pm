@@ -6,7 +6,7 @@ Mojolicious::Plugin::AssetPack - Compress and convert css, less, sass, javascrip
 
 =head1 VERSION
 
-0.27
+0.28
 
 =head1 SYNOPSIS
 
@@ -34,6 +34,10 @@ In your template:
 
   %= asset 'app.js'
   %= asset 'app.css'
+
+Or if you want the asset inlined in the HTML:
+
+  %= asset 'app.css', { inline => 1 }
 
 Or if you need to add the tags manually:
 
@@ -86,6 +90,22 @@ You can also set the L</MOJO_ASSETPACK_NO_CACHE> environment variable to 1 to
 convert your less/sass/coffee files each time their asset directive is expanded
 (only works when L</minify> is disabled).
 
+=head2 Inlined assets
+
+AssetPack is able to insert your assets directly into your markup. This is
+useful if you want to make a one-page app and want to keep the number of
+requests to the server at a minimum. However, the images, fonts or any other
+external asset which again is referred to require more requests to the
+server. See below on how to include the asset directly in your template:
+
+  %= asset 'app.css', { inline => 1 }
+
+Or for manual inspection:
+
+  % for my $data (asset->get('app.js', { inline => 1 })) {
+    %== $data;
+  }
+
 =head2 Custom domain
 
 You might want to serve the assets from a domain different from where the
@@ -136,17 +156,9 @@ use Mojolicious::Plugin::AssetPack::Preprocessors;
 use File::Basename qw( basename );
 use File::Spec::Functions qw( catdir catfile );
 use constant DEBUG => $ENV{MOJO_ASSETPACK_DEBUG} || 0;
+use constant CACHE_ASSETS => $ENV{MOJO_ASSETPACK_NO_CACHE} ? 0 : 1;
 
-our $VERSION = '0.27';
-
-our %MISSING_ERROR = (
-  default => '%s has no preprocessor. https://metacpan.org/pod/Mojolicious::Plugin::AssetPack::Preprocessors',
-  coffee  => '%s require "coffee". http://coffeescript.org/#installation',
-  jsx     => '%s require "jsx". http://facebook.github.io/react',
-  less    => '%s require "less". http://lesscss.org/#usage',
-  sass    => '%s require "sass". http://sass-lang.com/install',
-  scss    => '%s require "sass". http://sass-lang.com/install',
-);
+our $VERSION = '0.28';
 
 =head1 ATTRIBUTES
 
@@ -181,16 +193,6 @@ has minify        => 0;
 has preprocessors => sub { Mojolicious::Plugin::AssetPack::Preprocessors->new };
 has out_dir       => sub { catdir File::Spec::Functions::tmpdir(), 'mojo-assetpack' };
 
-=head2 rebuild
-
-Deprecated.
-
-=cut
-
-sub rebuild {
-  warn "rebuild() has no effect any more. Will soon be removed.";
-}
-
 has _ua => sub {
   require Mojo::UserAgent;
   Mojo::UserAgent->new(max_redirects => 3);
@@ -211,57 +213,16 @@ sub add {
   my ($self, $moniker, @files) = @_;
 
   warn "[ASSETPACK] add $moniker => @files\n" if DEBUG;
-
   $self->{assets}{$moniker} = \@files;
 
   if ($self->minify) {
     $self->process($moniker => @files);
   }
-  elsif (!$ENV{MOJO_ASSETPACK_NO_CACHE}) {
-    $self->{processed}{$moniker} = [$self->_process_many($moniker, @files)];
+  elsif (CACHE_ASSETS) {
+    $self->_process_many($moniker);
   }
 
   $self;
-}
-
-=head2 expand
-
-  $bytestream = $self->expand($c, $moniker);
-
-This method will return one tag for each asset defined by the "$moniker".
-
-Will also run C<less>, C<sass> or C<coffee> on the files to convert them to
-css or js, which the browser understands. (With L</MOJO_ASSETPACK_NO_CACHE>
-enabled, this is done each time on expand; with it disabled, this is done once
-when the asset is added.)
-
-The returning bytestream will contain style or script tags.
-
-=cut
-
-sub expand {
-  my ($self, $c, $moniker) = @_;
-  my @processed_files;
-
-  warn "[ASSETPACK] expand $moniker\n" if DEBUG;
-
-  if ($ENV{MOJO_ASSETPACK_NO_CACHE}) {
-    @processed_files = $self->_process_many($moniker, @{$self->{assets}{$moniker}});
-  }
-  elsif (ref $self->{processed}{$moniker} eq 'ARRAY') {
-    @processed_files = @{$self->{processed}{$moniker}};
-  }
-  else {
-    warn "[ASSETPACK] Cannot expand $moniker\n" if DEBUG;
-    return b "<!-- Cannot expand $moniker -->";
-  }
-
-  if ($moniker =~ /\.js/) {
-    return b join "\n", map { $c->javascript($_) } @processed_files;
-  }
-  else {
-    return b join "\n", map { $c->stylesheet($_) } @processed_files;
-  }
 }
 
 =head2 fetch
@@ -312,12 +273,15 @@ contain one file if the C<$moniker> is minified.
 =cut
 
 sub get {
-  my ($self, $moniker) = @_;
-  my $files = $self->{processed}{$moniker};
+  my ($self, $moniker, $args) = @_;
+  my $files = $self->{processed}{$moniker} || [];
 
-  return unless $files;
-  return @$files if ref $files;
-  return $files;
+  if ($args->{inline}) {
+    return map { slurp(catfile $self->out_dir, $_) } @$files;
+  }
+  else {
+    return map { $self->base_url . $_ } @$files;
+  }
 }
 
 =head2 process
@@ -334,39 +298,33 @@ The result file will be stored in L</Packed directory>.
 sub process {
   my ($self, $moniker, @files) = @_;
   my ($md5_sum, $files) = $self->_read_files(@files);
-  my $out_file  = $moniker;
+  my ($name,    $ext)   = $moniker =~ /^(.*)\.(\w+)$/
+    or die "Moniker ($moniker) need to have an extension, like .css, .js, ...";
+  my $disk_path = catfile $self->out_dir, "$name-$md5_sum.$ext";
   my $processed = '';
-  my (@err, $name);
 
-  $out_file =~ s/\.(\w+)$// or die "Moniker ($moniker) need to have an extension, like .css, .js, ...";
+  $self->{processed}{$moniker} = ["$name-$md5_sum.$ext"];
 
-  if (!$ENV{MOJO_ASSETPACK_NO_CACHE} and $name = $self->_fluffy_find(qr{^$out_file(-$md5_sum)?\.\w+$})) {
+  if (-e $disk_path and CACHE_ASSETS) {
     $self->{log}->debug("Using existing asset for $moniker");
-    $self->{processed}{$moniker} = $self->base_url . $name;
     return $self;
   }
 
   for my $file (@files) {
     my $data = $files->{$file};
-    warn "[ASSETPACK] process $file ($data->{path})\n" if DEBUG;
     my $err = $self->preprocessors->process($data->{ext}, $self, \$data->{body}, $data->{path});
-    push @err, $err if $err;
-    $processed .= $data->{body};
+
+    $processed .= delete $data->{body};
+
+    if ($err) {
+      $self->{log}->error($err);
+      $disk_path = catfile $self->out_dir, "$name-$md5_sum-with-error.$ext";
+      $self->{processed}{$moniker} = ["$name-$md5_sum-with-error.$ext"];
+    }
   }
 
-  $md5_sum .= '-with-error' if @err;
-  $out_file .= "-$md5_sum" . ($moniker =~ m!(\.\w+)$!)[0];
-
-  if ($md5_sum eq md5_sum($processed) and $files[0] !~ /^http\s?:/) {
-    warn "[ASSETPACK] Same input as output for $files[0]\n" if DEBUG;
-    $self->{processed}{$moniker} = $files[0];
-  }
-  else {
-    spurt $processed, catfile $self->out_dir, $out_file;
-    $self->{log}->debug("Built asset for $moniker ($out_file)");
-    $self->{processed}{$moniker} = $self->base_url . $out_file;
-  }
-
+  spurt $processed => $disk_path;
+  $self->{log}->debug("Built asset for $moniker");
   $self;
 }
 
@@ -396,7 +354,7 @@ sub register {
   $self->{log}       = $app->log;
   $self->{static}    = $app->static;
 
-  warn "[ASSETPACK] Will rebuild assets on each request.\n" if DEBUG and $ENV{MOJO_ASSETPACK_NO_CACHE};
+  warn "[ASSETPACK] Will rebuild assets on each request.\n" if DEBUG and !CACHE_ASSETS;
 
   if ($config->{out_dir}) {
     $self->out_dir($config->{out_dir});
@@ -416,10 +374,8 @@ sub register {
   $app->helper(
     $helper => sub {
       return $self if @_ == 1;
-      return shift, $self->add(@_) if @_ > 2;
-      return $self->expand(@_) unless $self->minify;
-      return $_[0]->javascript($self->{processed}{$_[1]}) if $_[1] =~ /\.js$/;
-      return $_[0]->stylesheet($self->{processed}{$_[1]});
+      return shift, $self->add(@_) if @_ > 2 and ref $_[-1] ne 'HASH';
+      return $self->_inject(@_);
     }
   );
 }
@@ -436,9 +392,35 @@ sub _fluffy_find {
   return;
 }
 
+sub _inject {
+  my ($self, $c, $moniker, $args) = @_;
+  my $tag_helper = $moniker =~ /\.js/ ? 'javascript' : 'stylesheet';
+
+  $self->_process_many($moniker) unless CACHE_ASSETS;
+  my $processed = $self->{processed}{$moniker} || [];
+
+  if (!@$processed) {
+    return b "<!-- Asset '$moniker' is not defined. -->";
+  }
+  elsif ($args->{inline}) {
+    return $c->$tag_helper(
+      sub {
+        join "\n", map { slurp(catfile $self->out_dir, $_) } @$processed;
+      }
+    );
+  }
+  else {
+    return b join "\n", map { $c->$tag_helper($self->base_url . $_) } @$processed;
+  }
+}
+
 sub _process_many {
-  my ($self, $moniker, @files) = @_;
-  my $ext = $moniker =~ /\.(\w+)$/ ? $1 : 'unknown_extension';
+  my ($self, $moniker) = @_;
+  my @files = @{$self->{assets}{$moniker} || []};
+  my $ext;
+
+  $moniker =~ /\.(\w+)$/ or die "Moniker ($moniker) need to have an extension, like .css, .js, ...";
+  $ext = $1;
 
   for my $file (@files) {
     my $moniker = basename $file;
@@ -450,10 +432,10 @@ sub _process_many {
     }
 
     $self->process($moniker => $file);
-    $file = $self->{processed}{$moniker};
+    $file = $self->{processed}{$moniker}[0];
   }
 
-  return @files;
+  $self->{processed}{$moniker} = \@files;
 }
 
 sub _read_files {
@@ -467,12 +449,12 @@ FILE:
     if ($file =~ /^https?:/) {
       $data->{path} = $self->fetch($file);
       $data->{body} = slurp $data->{path};
-      $data->{ext} = $1 if $data->{path} =~ /\.(\w+)$/;
+      $data->{ext}  = $1 if $data->{path} =~ /\.(\w+)$/;
     }
     elsif (my $asset = $self->{static}->file($file)) {
       $data->{path} = $asset->path;
       $data->{body} = slurp $asset->path;
-      $data->{ext} = $1 if $data->{path} =~ /\.(\w+)$/;
+      $data->{ext}  = $1 if $data->{path} =~ /\.(\w+)$/;
     }
     else {
       die "AssetPack cannot find input file '$file'\n";

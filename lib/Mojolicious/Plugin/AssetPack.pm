@@ -6,7 +6,7 @@ Mojolicious::Plugin::AssetPack - Compress and convert css, less, sass, javascrip
 
 =head1 VERSION
 
-0.29
+0.30
 
 =head1 SYNOPSIS
 
@@ -157,7 +157,7 @@ use File::Basename qw( basename );
 use File::Spec::Functions qw( catdir catfile );
 use constant CACHE_ASSETS => $ENV{MOJO_ASSETPACK_NO_CACHE} ? 0 : 1;
 
-our $VERSION = '0.29';
+our $VERSION = '0.30';
 
 =head1 ATTRIBUTES
 
@@ -277,7 +277,7 @@ sub get {
   my $files = $self->{processed}{$moniker} || [];
 
   if ($args->{inline}) {
-    return map { slurp(catfile $self->out_dir, $_) } @$files;
+    return map { $self->{static}->file("packed/$_")->slurp } @$files;
   }
   else {
     return map { $self->base_url . $_ } @$files;
@@ -300,13 +300,13 @@ sub process {
   my ($md5_sum, $files) = $self->_read_files(@files);
   my ($name,    $ext)   = $moniker =~ /^(.*)\.(\w+)$/
     or die "Moniker ($moniker) need to have an extension, like .css, .js, ...";
-  my $path = catfile $self->out_dir, "$name-$md5_sum.$ext";
   my $processed = '';
 
   $self->{processed}{$moniker} = ["$name-$md5_sum.$ext"];
 
-  if (-e $path and CACHE_ASSETS) {
-    $self->{log}->debug("Using existing asset for $moniker: $path");
+  # Need to scan all directories and not just out_dir()
+  if (my $file = $self->{static}->file("packed/$name-$md5_sum.$ext") and CACHE_ASSETS) {
+    $self->{log}->debug("Using existing asset for $moniker: @{[$file->path]}");
     return $self;
   }
 
@@ -318,11 +318,11 @@ sub process {
 
     if ($err) {
       $self->{log}->error($err);
-      $path = catfile $self->out_dir, "$name-$md5_sum-with-error.$ext";
       $self->{processed}{$moniker} = ["$name-$md5_sum-with-error.$ext"];
     }
   }
 
+  my $path = catfile $self->out_dir, $self->{processed}{$moniker}[0];
   spurt $processed => $path;
   $self->{log}->info("Built asset for $moniker: $path");
   $self;
@@ -405,7 +405,7 @@ sub _inject {
   elsif ($args->{inline}) {
     return $c->$tag_helper(
       sub {
-        join "\n", map { slurp(catfile $self->out_dir, $_) } @$processed;
+        join "\n", map { $self->{static}->file("packed/$_")->slurp } @$processed;
       }
     );
   }

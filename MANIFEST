@@ -56,9 +56,8 @@ t/public/js/c.coffee
 t/public/js/c.jsx
 t/public/js/d.coffee
 t/public/js/empty.js
-t/public/packed/a-e51f9a9de5d367d0a4d97bb75a48bf54.css
-t/public/packed/b-d9269f28f50e9ceea7789d4b053306da.css
-t/public/packed/less-9bb8a2a996dde4692205a829ba6d1c8a.css
+t/public/packed/c-f222ca932c5593c33e0b71688fb96a1c-with-error.js
+t/public/packed/jsx-f222ca932c5593c33e0b71688fb96a1c.js
 t/public/sass/_included.scss
 t/public/sass/a.sass
 t/public/sass/compass.scss

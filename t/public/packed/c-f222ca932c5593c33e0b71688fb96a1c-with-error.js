@@ -1,1 +1,0 @@
-alert('Failed to run "/usr/local/bin/jsx" ($?=130, $!=25) ');

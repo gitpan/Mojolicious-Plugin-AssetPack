@@ -35,6 +35,8 @@ t/js.t
 t/jsx.t
 t/less.t
 t/missing.t
+t/my-plugin.t
+t/MyPlugin.pm
 t/no-cache.t
 t/online-example-expand-src-url.t
 t/online-fetch.t
@@ -56,13 +58,14 @@ t/public/js/c.coffee
 t/public/js/c.jsx
 t/public/js/d.coffee
 t/public/js/empty.js
-t/public/packed/c-f222ca932c5593c33e0b71688fb96a1c-with-error.js
-t/public/packed/jsx-f222ca932c5593c33e0b71688fb96a1c.js
 t/public/sass/_included.scss
 t/public/sass/a.sass
 t/public/sass/compass.scss
 t/public/sass/x.scss
 t/public/sass/y.scss
+t/read-only-with-existing-assets/packed/my-plugin-existing-7c174b801d6fc968f1576055e88c18cb.css
+t/read-only-with-source-assets/css/my-plugin-a.css
+t/read-only-with-source-assets/css/my-plugin-b.css
 t/sass.t
 t/scss.t
 t/skip-minified.t

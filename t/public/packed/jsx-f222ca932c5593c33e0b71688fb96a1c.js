@@ -1,1 +1,0 @@
-var app=React.DOM.div({className:"appClass"},"Hello, React!");React.renderComponent(React.DOM.h1(null,"Hello, world!"),document.getElementById('example'));

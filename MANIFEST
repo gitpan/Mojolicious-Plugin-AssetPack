@@ -31,6 +31,7 @@ t/embedded-app.t
 t/get.t
 t/Helper.pm
 t/inline.t
+t/issue-33-tag-helper.t
 t/js.t
 t/jsx.t
 t/less.t
@@ -58,6 +59,7 @@ t/public/js/c.coffee
 t/public/js/c.jsx
 t/public/js/d.coffee
 t/public/js/empty.js
+t/public/js/error.jsx
 t/public/sass/_included.scss
 t/public/sass/a.sass
 t/public/sass/compass.scss

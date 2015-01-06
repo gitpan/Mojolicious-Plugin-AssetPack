@@ -28,6 +28,7 @@ t/css.t
 t/custom-domain.t
 t/custom-preprocessor.t
 t/embedded-app.t
+t/fallback.t
 t/get.t
 t/Helper.pm
 t/inline.t
